@@ -1,32 +1,37 @@
 import numpy as np
 import cv2
 
-# tracker
-tracker_types = ['BOOSTING', 'MIL','KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'MOSSE', 'CSRT']
-tracker_type = tracker_types[0]
-
-if tracker_type == 'BOOSTING':
-    tracker = cv2.legacy.TrackerBoosting_create()
-if tracker_type == 'MIL':
-    tracker = cv2.TrackerMIL_create() 
-if tracker_type == 'KCF':
-    tracker = cv2.TrackerKCF_create() 
-if tracker_type == 'TLD':
-    tracker = cv2.legacy.TrackerTLD_create() 
-if tracker_type == 'MEDIANFLOW':
-    tracker = cv2.legacy.TrackerMedianFlow_create() 
-if tracker_type == 'MOSSE':
-    tracker = cv2.legacy.TrackerMOSSE_create()
-if tracker_type == "CSRT":
-    tracker = cv2.TrackerCSRT_create()
-
-# Create the circle
+# Constant
 colour = (0,255,0)
 lineWidth = 3       # -1 will result in filled circle
 radius = 10
 point = (0,0)
 points = []
 num_click = 0
+first_detected = 0
+reference_frame = 0
+reference_bbox = (0, 0, 20, 20) # just initialize
+
+def tracker_type(type):
+    # tracker
+    tracker_type = type
+
+    if tracker_type == 'BOOSTING':
+        tracker = cv2.legacy.TrackerBoosting_create()
+    if tracker_type == 'MIL':
+        tracker = cv2.TrackerMIL_create() 
+    if tracker_type == 'KCF':
+        tracker = cv2.TrackerKCF_create() 
+    if tracker_type == 'TLD':
+        tracker = cv2.legacy.TrackerTLD_create() 
+    if tracker_type == 'MEDIANFLOW':
+        tracker = cv2.legacy.TrackerMedianFlow_create() 
+    if tracker_type == 'MOSSE':
+        tracker = cv2.legacy.TrackerMOSSE_create()
+    if tracker_type == "CSRT":
+        tracker = cv2.TrackerCSRT_create()
+    
+    return tracker
  
 # function for detecting left mouse click
 def click(event, x,y, flags, param):
@@ -40,14 +45,16 @@ def click(event, x,y, flags, param):
         print(f'points {points}')
 
 if __name__=="__main__":
+    tracker_types = ['BOOSTING', 'MIL','KCF', 'TLD', 'MEDIANFLOW', 'MOSSE', 'CSRT']
+    type = 'CSRT'
+    tracker = tracker_type(type)
 
     # event handler
     cv2.namedWindow("Frame")      # must match the imshow 1st argument
     cv2.setMouseCallback("Frame", click)
+    cap = cv2.VideoCapture(0)
 
     if len(points) < 2:
-        cap = cv2.VideoCapture(0)
-
         #Loop for video stream
         while (len(points) < 2): 
             stream = cv2.waitKey(1)   # Load video every 1ms and to detect user entered key
@@ -66,11 +73,14 @@ if __name__=="__main__":
             w = points[1][0] - points[0][0]
             h = points[1][1] - points[0][1]
             bbox = (x,y,w,h)
-            ret = tracker.init(frame, bbox)
+            
+            tracker.init(frame, bbox)
+            reference_frame = frame
+            reference_bbox = bbox
+            print(f'reference_bbox = {reference_bbox}')
+
 
     if len(points) == 2:
-        cap = cv2.VideoCapture(0)
-
         #Loop for video stream
         while (True):
             stream = cv2.waitKey(1)   # Load video every 1ms and to detect user entered key
@@ -96,12 +106,16 @@ if __name__=="__main__":
                 else:
                     cv2.putText(frame, "Tracking failure detected", (100,80), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
-                cv2.putText(frame, tracker_type + " Tracker", (100,20), 
+                    tracker = tracker_type(type)
+                    tracker.init(reference_frame, reference_bbox)
+                    
+                cv2.putText(frame, type + " Tracker", (100,20), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2)
                 cv2.putText(frame, "FPS : " + str(int(fps)), (100,50), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2)
 
             cv2.imshow("Frame", frame)
+            # print(f'reference_bbox = {reference_bbox}, reference_frame = {reference_frame[0]}')
             
             if stream & 0XFF == ord('q'):  # If statement to stop loop,Letter 'q' is the escape key
                 break                      # get out of loop
