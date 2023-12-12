@@ -3,8 +3,8 @@ import cv2
 
 # Constant
 colour = (0,255,0)
-lineWidth = 3       # -1 will result in filled circle
-radius = 10
+lineWidth = -1      # -1 will result in filled circle
+radius = 3
 point = (0,0)
 points = []
 num_click = 0
