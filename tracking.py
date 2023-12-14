@@ -1,4 +1,4 @@
-import numpy as np
+import serial
 import cv2
 
 # Constant
@@ -12,10 +12,12 @@ integral_x = 0
 pre_error_x = 0
 integral_y = 0
 pre_error_y = 0
-min = -15
-max = 15
+min = -15 # degree/s
+max = 15  # degree/s
 reference_frame = 0
 reference_bbox = (0, 0, 20, 20) # just initialize
+base_vel = 0.1220740379
+stop_command_str = "FF 01 0F 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
 
 def tracker_type(type):
     # tracker
@@ -49,7 +51,7 @@ def click(event, x,y, flags, param):
         print(f"coordinate = ({x}, {y})")
         print(f'points {points}')
 
-def calc_vel_PID_yaw(x_max, x_min, x_setpoint, x_pv, kp, ki, kd, dt):
+def calc_vel_PID_yaw(x_max, x_min, x_setpoint, x_pv, kp, ki, kd, dt, width):
     global integral_x, pre_error_x
     error = x_setpoint - x_pv
 
@@ -62,16 +64,16 @@ def calc_vel_PID_yaw(x_max, x_min, x_setpoint, x_pv, kp, ki, kd, dt):
     Dout = kd * derivative_x
     pre_error_x = error
 
-    vel_x = Pout + Iout + Dout
+    vel_x = (Pout + Iout + Dout) * max / width
 
-    if output > x_max:
-        output = x_max
-    elif output < x_min:
-        output = x_min
+    if vel_x > x_max:
+        vel_x = x_max
+    elif vel_x < x_min:
+        vel_x = x_min
     
     return vel_x
 
-def calc_vel_PID_pitch(y_may, y_min, y_setpoint, y_pv, kp, ki, kd, dt):
+def calc_vel_PID_pitch(y_max, y_min, y_setpoint, y_pv, kp, ki, kd, dt,height):
     global integral_y, pre_error_y
     error = y_setpoint - y_pv
 
@@ -84,16 +86,71 @@ def calc_vel_PID_pitch(y_may, y_min, y_setpoint, y_pv, kp, ki, kd, dt):
     Dout = kd * derivative_y
     pre_error_y = error
 
-    vel_y = Pout + Iout + Dout
+    vel_y = (Pout + Iout + Dout) * max / height
 
-    if output > y_may:
-        output = y_may
-    elif output < y_min:
-        output = y_min
+    if vel_y > y_max:
+        vel_y = y_max
+    elif vel_y < y_min:
+        vel_y = y_min
     
     return vel_y
 
+def vel2hex(yaw, pitch):
+    int_yaw = int(yaw/base_vel)
+    int_pitch = int(pitch/base_vel)
+
+    if int_yaw < 0:
+        int_yaw = 65535 + int_yaw
+    if int_pitch < 0:
+        int_pitch = 65535 + int_pitch
+
+    print(f'yaw = {int_yaw}, pitch = {int_pitch}')
+
+    hex_yaw = "{:04x}".format(int_yaw)
+    hex_pitch = "{:04x}".format(int_pitch)
+
+    Psl = hex_pitch[2:]
+    Psh = hex_pitch[:2]
+    Ysl = hex_yaw[2:]
+    Ysh = hex_yaw[2:]
+
+    return Psl, Psh, Ysl, Ysh
+
+def control_parser(Psl, Psh, Ysl, Ysh):
+    '''direction parsing
+       0 - 32767 bawah kiri
+       65535 - 32768 atas kanan
+    '''
+
+    Header = "FF 01 0F 10"
+    RM = " 00" # Roll mode | 00 No control, 01 Mode Speed, 02 Mode Speed Angle
+    PM = " 01" # Pitch Mode | 00 No control, 01 Mode Speed, 02 Mode Speed Angle
+    YM = " 01" # Yaw Mode | 00 No control, 01 Mode Speed, 02 Mode Speed Angle
+    Rsl = " 00" # Roll speed low byte 
+    Rsh = " 00" # Roll speed high byte | 0.1220740379 degree/sec | (2 byte signed, little-endian order)
+    Ral = " 00" # Roll angle low byte 
+    Rah = " 00" # Roll angle  high byte | 0.02197265625 degree | (2 byte signed, little-endian order)
+    Psl = " 00" #+ Psl  # Pitch speed low byte 
+    Psh = " 00" #+ Psh # Pitch speed high byte | 0.1220740379 degree/sec | (2 byte signed, little-endian order)
+    Pal = " 00" # Pitch angle low byte 
+    Pah = " 00" # Pitch angle  high byte | 0.02197265625 degree | (2 byte signed, little-endian order)
+    Ysl = " " + Ysl # Yaw speed low byte 
+    Ysh = " " + Ysh # Yaw speed high byte | 0.1220740379 degree/sec | (2 byte signed, little-endian order)
+    Yal = " 00" # Yaw angle low byte 
+    Yah = " 00" # Yaw angle  high byte | 0.02197265625 degree | (2 byte signed, little-endian order)
+    CS =  "{:02x}".format(((int(RM[-2:], 16) + int(PM[-2:], 16) + int(YM[-2:], 16) 
+                           + int(Rsl[-2:], 16) + int(Rsh[-2:], 16) + int(Ral[-2:], 16) + int(Rah[-2:], 16) 
+                           + int(Psl[-2:], 16) + int(Psh[-2:], 16) + int(Pal[-2:], 16) + int(Pah[-2:], 16) 
+                           + int(Ysl[-2:], 16) + int(Ysh[-2:], 16) + int(Yal[-2:], 16) + int(Yah[-2:], 16)) % 256))  # checksum
+
+    command = Header + RM + PM + YM + Rsl + Rsh + Ral + Rah + Psl + Psh + Pal + Pah + Ysl + Ysh + Yal + Yah + CS
+    
+    return command
+
 if __name__=="__main__":
+
+    # serial init
+    Serial = serial.Serial(port='COM10',  baudrate=115200, timeout=.1)
 
     # tracking init
     tracker_types = ['BOOSTING', 'MIL','KCF', 'TLD', 'MEDIANFLOW', 'MOSSE', 'CSRT']
@@ -162,27 +219,37 @@ if __name__=="__main__":
                     cv2.circle(frame, center_bbox, radius, colour, lineWidth)
                     cv2.circle(frame, center_frame, radius, (255,255,0), lineWidth)
 
-                    yaw = calc_vel_PID_yaw(max, min, center_bbox[0], center_frame[0], 1, 0, 0, dt)
-                    pitch = calc_vel_PID_pitch(max, min, center_bbox[1], center_frame[1], 1, 0, 0, dt)
+                    yaw = calc_vel_PID_yaw(max, min, center_bbox[0], center_frame[0], 0.5, 0, 0, dt, width)
+                    pitch = calc_vel_PID_pitch(max, min, center_bbox[1], center_frame[1], 1, 0, 0, dt, height)
 
-                    print(f'yaw = {yaw}, pitc')
+                    hex_vels = vel2hex(yaw, pitch)
+                    command_str = control_parser(hex_vels[0], hex_vels[1], hex_vels[2], hex_vels[3])
+                    command_str = bytes.fromhex(command_str)
+                    
+                    print(f'yaw = {yaw}, pitch = {pitch}')
                 
                 else:
                     cv2.putText(frame, "Tracking failure detected", (100,80), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
                     tracker = tracker_type(type)
                     tracker.init(reference_frame, reference_bbox)
+                    command_str = bytes.fromhex(stop_command_str)
                     
                 cv2.putText(frame, type + " Tracker", (100,20), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2)
                 cv2.putText(frame, "FPS : " + str(int(fps)), (100,50), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2)
 
+            Serial.write(command_str)
             cv2.imshow("Frame", frame)
-            # print(f'reference_bbox = {reference_bbox}, reference_frame = {reference_frame[0]}')
             
             if stream & 0XFF == ord('q'):  # If statement to stop loop,Letter 'q' is the escape key
                 break                      # get out of loop
-            
+    
+    command_str = bytes.fromhex(stop_command_str)
+    Serial.write(command_str)
+    print("Tracking done")
+
+    Serial.close()
     cap.release()
     cv2.destroyAllWindows()
