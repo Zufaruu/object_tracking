@@ -12,8 +12,8 @@ integral_x = 0
 pre_error_x = 0
 integral_y = 0
 pre_error_y = 0
-min = -15 # degree/s
-max = 15  # degree/s
+min = -0.123 * 20 # degree/s
+max = 0.123 * 20  # degree/s
 reference_frame = 0
 reference_bbox = (0, 0, 20, 20) # just initialize
 base_vel = 0.1220740379
@@ -51,7 +51,7 @@ def click(event, x,y, flags, param):
         print(f"coordinate = ({x}, {y})")
         print(f'points {points}')
 
-def calc_vel_PID_yaw(x_max, x_min, x_setpoint, x_pv, kp, ki, kd, dt, width):
+def calc_vel_PID_yaw(x_max, x_min, x_setpoint, x_pv, kp, ki, kd, dt):
     global integral_x, pre_error_x
     error = x_setpoint - x_pv
 
@@ -64,8 +64,7 @@ def calc_vel_PID_yaw(x_max, x_min, x_setpoint, x_pv, kp, ki, kd, dt, width):
     Dout = kd * derivative_x
     pre_error_x = error
 
-    vel_x = (Pout + Iout + Dout) * max / width
-
+    vel_x = (Pout + Iout + Dout) 
     if vel_x > x_max:
         vel_x = x_max
     elif vel_x < x_min:
@@ -73,7 +72,7 @@ def calc_vel_PID_yaw(x_max, x_min, x_setpoint, x_pv, kp, ki, kd, dt, width):
     
     return vel_x
 
-def calc_vel_PID_pitch(y_max, y_min, y_setpoint, y_pv, kp, ki, kd, dt,height):
+def calc_vel_PID_pitch(y_max, y_min, y_setpoint, y_pv, kp, ki, kd, dt):
     global integral_y, pre_error_y
     error = y_setpoint - y_pv
 
@@ -86,7 +85,7 @@ def calc_vel_PID_pitch(y_max, y_min, y_setpoint, y_pv, kp, ki, kd, dt,height):
     Dout = kd * derivative_y
     pre_error_y = error
 
-    vel_y = (Pout + Iout + Dout) * max / height
+    vel_y = (Pout + Iout + Dout) 
 
     if vel_y > y_max:
         vel_y = y_max
@@ -112,7 +111,7 @@ def vel2hex(yaw, pitch):
     Psl = hex_pitch[2:]
     Psh = hex_pitch[:2]
     Ysl = hex_yaw[2:]
-    Ysh = hex_yaw[2:]
+    Ysh = hex_yaw[:2]
 
     return Psl, Psh, Ysl, Ysh
 
@@ -130,15 +129,15 @@ def control_parser(Psl, Psh, Ysl, Ysh):
     Rsh = " 00" # Roll speed high byte | 0.1220740379 degree/sec | (2 byte signed, little-endian order)
     Ral = " 00" # Roll angle low byte 
     Rah = " 00" # Roll angle  high byte | 0.02197265625 degree | (2 byte signed, little-endian order)
-    Psl = " 00" #+ Psl  # Pitch speed low byte 
-    Psh = " 00" #+ Psh # Pitch speed high byte | 0.1220740379 degree/sec | (2 byte signed, little-endian order)
+    Psl = " " + Psl  # Pitch speed low byte 
+    Psh = " " + Psh # Pitch speed high byte | 0.1220740379 degree/sec | (2 byte signed, little-endian order)
     Pal = " 00" # Pitch angle low byte 
     Pah = " 00" # Pitch angle  high byte | 0.02197265625 degree | (2 byte signed, little-endian order)
     Ysl = " " + Ysl # Yaw speed low byte 
     Ysh = " " + Ysh # Yaw speed high byte | 0.1220740379 degree/sec | (2 byte signed, little-endian order)
     Yal = " 00" # Yaw angle low byte 
     Yah = " 00" # Yaw angle  high byte | 0.02197265625 degree | (2 byte signed, little-endian order)
-    CS =  "{:02x}".format(((int(RM[-2:], 16) + int(PM[-2:], 16) + int(YM[-2:], 16) 
+    CS =  " {:02x}".format(((int(RM[-2:], 16) + int(PM[-2:], 16) + int(YM[-2:], 16) 
                            + int(Rsl[-2:], 16) + int(Rsh[-2:], 16) + int(Ral[-2:], 16) + int(Rah[-2:], 16) 
                            + int(Psl[-2:], 16) + int(Psh[-2:], 16) + int(Pal[-2:], 16) + int(Pah[-2:], 16) 
                            + int(Ysl[-2:], 16) + int(Ysh[-2:], 16) + int(Yal[-2:], 16) + int(Yah[-2:], 16)) % 256))  # checksum
@@ -150,7 +149,7 @@ def control_parser(Psl, Psh, Ysl, Ysh):
 if __name__=="__main__":
 
     # serial init
-    Serial = serial.Serial(port='COM10',  baudrate=115200, timeout=.1)
+    Serial = serial.Serial(port='/dev/ttyUSB0',  baudrate=115200, timeout=.1)
 
     # tracking init
     tracker_types = ['BOOSTING', 'MIL','KCF', 'TLD', 'MEDIANFLOW', 'MOSSE', 'CSRT']
@@ -168,7 +167,11 @@ if __name__=="__main__":
     center_frame = (int(width/2), int(height/2))
 
     if len(points) < 2:
-        #Loop for video stream
+        
+        command_str = "FF 01 0F 10 02 02 02 00 00 00 00 00 00 00 00 00 00 00 00 06"
+        command_str = bytes.fromhex(command_str)
+        Serial.write(command_str)
+
         while (len(points) < 2): 
             stream = cv2.waitKey(1)   # Load video every 1ms and to detect user entered key
             
@@ -219,11 +222,12 @@ if __name__=="__main__":
                     cv2.circle(frame, center_bbox, radius, colour, lineWidth)
                     cv2.circle(frame, center_frame, radius, (255,255,0), lineWidth)
 
-                    yaw = calc_vel_PID_yaw(max, min, center_bbox[0], center_frame[0], 0.5, 0, 0, dt, width)
-                    pitch = calc_vel_PID_pitch(max, min, center_bbox[1], center_frame[1], 1, 0, 0, dt, height)
+                    yaw = calc_vel_PID_yaw(max, min, center_bbox[0], center_frame[0], 0.1, 0.000, 0.01, dt)
+                    pitch = calc_vel_PID_pitch(max, min, center_bbox[1], center_frame[1], 0.1, 0.000, 0.01, dt)
 
                     hex_vels = vel2hex(yaw, pitch)
                     command_str = control_parser(hex_vels[0], hex_vels[1], hex_vels[2], hex_vels[3])
+                    #print(command_str)
                     command_str = bytes.fromhex(command_str)
                     
                     print(f'yaw = {yaw}, pitch = {pitch}')

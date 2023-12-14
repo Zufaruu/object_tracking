@@ -53,6 +53,7 @@ if __name__ == "__main__":
         else:
             thestring = control_parser()       # checking negative direction
             # thestring = "FF 01 0F 10 00 01 01 00 00 00 00 0A 00 00 00 0A 00 00 00 16"     # speed
+            # thestring = "FF 01 0F 10 00 01 01 00 00 00 00 02 00 00 00 02 02 00 00 08"
             # thestring = "FF 01 0F 10 00 05 05 00 00 00 00 00 00 1C 07 00 00 E4 F8 09"     # angle
 
         
