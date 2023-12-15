@@ -8,6 +8,9 @@ radius = 3
 point = (0,0)
 points = []
 num_click = 0
+is_define_object = True
+is_tracking = False
+is_killing = False
 integral_x = 0
 pre_error_x = 0
 integral_y = 0
@@ -18,6 +21,7 @@ reference_frame = 0
 reference_bbox = (0, 0, 20, 20) # just initialize
 base_vel = 0.1220740379
 stop_command_str = "FF 01 0F 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+init_pos_command_str = "FF 01 0F 10 02 02 02 00 00 00 00 00 00 00 00 00 00 00 00 06"
 
 def tracker_type(type):
     # tracker
@@ -42,14 +46,29 @@ def tracker_type(type):
  
 # function for detecting left mouse click
 def click(event, x,y, flags, param):
-    global point, num_click, points
+    global point, num_click, points, is_define_object, is_tracking
+
     if event == cv2.EVENT_LBUTTONDOWN and num_click < 2:
-        num_click = num_click + 1
-        point = (x,y)
-        points.append(point)
-        print(f'num_click = {num_click}')
-        print(f"coordinate = ({x}, {y})")
-        print(f'points {points}')
+        if num_click < 2:
+            num_click = num_click + 1
+            point = (x,y)
+            points.append(point)
+            is_define_object = True
+            is_tracking = False
+
+            print(f'num_click = {num_click}')
+            print(f"coordinate = ({x}, {y})")
+            
+        if num_click == 2:
+            is_define_object = False
+            is_tracking = True
+
+
+    if event == cv2.EVENT_RBUTTONDOWN:
+        num_click = 0
+        points = []
+        is_define_object = True
+        is_tracking = False
 
 def calc_vel_PID_yaw(x_max, x_min, x_setpoint, x_pv, kp, ki, kd, dt):
     global integral_x, pre_error_x
@@ -166,47 +185,54 @@ if __name__=="__main__":
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)  # float `height`
     center_frame = (int(width/2), int(height/2))
 
-    if len(points) < 2:
-        
-        command_str = "FF 01 0F 10 02 02 02 00 00 00 00 00 00 00 00 00 00 00 00 06"
-        command_str = bytes.fromhex(command_str)
-        Serial.write(command_str)
+    command_str = init_pos_command_str
+    command_str = bytes.fromhex(command_str)
+    Serial.write(command_str)
 
-        while (len(points) < 2): 
-            stream = cv2.waitKey(1)   # Load video every 1ms and to detect user entered key
+    while True:
+        if is_define_object:
+            command_str = stop_command_str
+            command_str = bytes.fromhex(command_str)
+            Serial.write(command_str)
+
+            while (is_define_object): 
+                stream = cv2.waitKey(1) # Load video every 1ms and to detect user entered key
+
+                # Read from videoCapture stream and display
+                ret,frame = cap.read()
+
+                if num_click == 0:
+                    cv2.circle(frame, (0,0),radius,colour,lineWidth)     # circle properties as arguments
+                else:
+                    cv2.circle(frame, point,radius,colour,lineWidth)     # circle properties as arguments
+
+                cv2.putText(frame, "Define the Object", (int(width/2)-100, 20), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
+
+                cv2.imshow("Frame", frame)
+
+                if stream & 0XFF == ord('q'):  # If statement to stop loop,Letter 'q' is the escape key
+                    is_killing = True
+                    break                      # get out of loop
             
-            # Read from videoCapture stream and display
-            ret,frame = cap.read()
-            cv2.circle(frame, point,radius,colour,lineWidth)     # circle properties as arguments
-
-            cv2.imshow("Frame", frame)
-
-            if stream & 0XFF == ord('q'):  # If statement to stop loop,Letter 'q' is the escape key
-                break                      # get out of loop
-        
-        if len(points) == 2:
-            x, y = points[0]
-            w = points[1][0] - points[0][0]
-            h = points[1][1] - points[0][1]
-            bbox = (x,y,w,h)
-            
-            tracker.init(frame, bbox)
-            reference_frame = frame
-            reference_bbox = bbox
-            print(f'reference_bbox = {reference_bbox}')
-
-
-    if len(points) == 2:
-        #Loop for video stream
-        while (True):
-            stream = cv2.waitKey(1)   # Load video every 1ms and to detect user entered key
-            
-            # Read from videoCapture stream and display
-            ret,frame = cap.read()
-
-            # main code
             if len(points) == 2:
-                # cv2.rectangle(frame, points[0], points[1], (255, 0, 0), 2) 
+                x, y = points[0]
+                w = points[1][0] - points[0][0]
+                h = points[1][1] - points[0][1]
+                bbox = (x,y,w,h)
+                
+                tracker.init(frame, bbox)
+                reference_frame = frame
+                reference_bbox = bbox
+                print(f'reference_bbox = {reference_bbox}')
+
+        if is_tracking:
+            #Loop for video stream
+            while (is_tracking):
+                stream = cv2.waitKey(1)   # Load video every 1ms and to detect user entered key
+                
+                # Read from videoCapture stream and display
+                ret,frame = cap.read()
 
                 timer = cv2.getTickCount()
                 ret, bbox = tracker.update(frame)
@@ -244,16 +270,20 @@ if __name__=="__main__":
                 cv2.putText(frame, "FPS : " + str(int(fps)), (100,50), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2)
 
-            Serial.write(command_str)
-            cv2.imshow("Frame", frame)
+                Serial.write(command_str)
+                cv2.imshow("Frame", frame)
             
-            if stream & 0XFF == ord('q'):  # If statement to stop loop,Letter 'q' is the escape key
-                break                      # get out of loop
-    
+                if stream & 0XFF == ord('q'):  # If statement to stop loop,Letter 'q' is the escape key
+                    is_killing = True
+                    break                      # get out of loop
+
+        if is_killing:  # kill program
+            break                      
+        
     command_str = bytes.fromhex(stop_command_str)
     Serial.write(command_str)
     print("Tracking done")
 
-    Serial.close()
+    # Serial.close()
     cap.release()
     cv2.destroyAllWindows()
