@@ -1,5 +1,6 @@
 import serial
 import cv2
+import numpy as np
 
 # Constant
 colour = (0,255,0)
@@ -11,6 +12,7 @@ num_click = 0
 is_define_object = True
 is_tracking = False
 is_killing = False
+failure_threshold = 50
 integral_x = 0
 pre_error_x = 0
 integral_y = 0
@@ -134,6 +136,27 @@ def vel2hex(yaw, pitch):
 
     return Psl, Psh, Ysl, Ysh
 
+def to_grayscale(arr):
+    "If arr is a color image (3D array), convert it to grayscale (2D array)."
+    if len(arr.shape) == 3:
+        return np.mean(arr, -1)  
+    else:
+        return arr
+
+def normalize(arr):
+    rng = arr.max()-arr.min()
+    amin = arr.min()
+    return (arr-amin)*255/rng
+
+def frame_diff(frame_bgr_ref, frame_bgr_target):
+    frame_bgr_ref = to_grayscale(frame_bgr_ref.astype(float))
+    frame_bgr_target = to_grayscale(frame_bgr_target.astype(float))
+
+    diff = frame_bgr_target - frame_bgr_ref  # elementwise for scipy arrays
+    m_norm = np.sum(abs(diff))  # Manhattan norm
+    return m_norm * 1.0 / frame_bgr_ref.size
+
+
 def control_parser(Psl, Psh, Ysl, Ysh):
     '''direction parsing
        0 - 32767 bawah kiri
@@ -201,6 +224,9 @@ if __name__=="__main__":
                 # Read from videoCapture stream and display
                 ret,frame = cap.read()
 
+                # frame_corr_value = frame_corr(frame, frame)
+                # print(frame_corr_value)
+
                 if num_click == 0:
                     cv2.circle(frame, (0,0),radius,colour,lineWidth)     # circle properties as arguments
                 else:
@@ -239,7 +265,10 @@ if __name__=="__main__":
                 fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer)
                 dt = 1/fps
 
-                if ret:
+                frame_diff_value = frame_diff(reference_frame, frame)
+                print(frame_diff_value)
+
+                if ret and frame_diff_value < failure_threshold:
                     p1 = (int(bbox[0]), int(bbox[1]))
                     p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
                     center_bbox = (int(bbox[0] + bbox[2]//2), int(bbox[1] + bbox[3]//2))
@@ -257,7 +286,7 @@ if __name__=="__main__":
                     command_str = bytes.fromhex(command_str)
                     
                     print(f'yaw = {yaw}, pitch = {pitch}')
-                
+
                 else:
                     cv2.putText(frame, "Tracking failure detected", (100,80), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
@@ -284,6 +313,6 @@ if __name__=="__main__":
     Serial.write(command_str)
     print("Tracking done")
 
-    # Serial.close()
+    Serial.close()
     cap.release()
     cv2.destroyAllWindows()
