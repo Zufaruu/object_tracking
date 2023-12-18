@@ -17,8 +17,8 @@ integral_x = 0
 pre_error_x = 0
 integral_y = 0
 pre_error_y = 0
-min = -0.123 * 20 # degree/s
-max = 0.123 * 20  # degree/s
+min = -0.123 * 60 # degree/s
+max = 0.123 * 60  # degree/s
 reference_frame = 0
 reference_bbox = (0, 0, 20, 20) # just initialize
 base_vel = 0.1220740379
@@ -279,8 +279,8 @@ if __name__=="__main__":
                     cv2.circle(frame, center_bbox, radius, colour, lineWidth)
                     cv2.circle(frame, center_frame, radius, (255,255,0), lineWidth)
 
-                    yaw = calc_vel_PID_yaw(max, min, center_bbox[0], center_frame[0], 0.1, 0.000, 0.01, dt)
-                    pitch = calc_vel_PID_pitch(max, min, center_bbox[1], center_frame[1], 0.1, 0.000, 0.01, dt)
+                    yaw = calc_vel_PID_yaw(max, min, center_bbox[0], center_frame[0], 0.09, 0.000, 0.016, dt)
+                    pitch = calc_vel_PID_pitch(max, min, center_bbox[1], center_frame[1], 0.09, 0.000, 0.016, dt)
 
                     hex_vels = vel2hex(yaw, pitch)
                     command_str = control_parser(hex_vels[0], hex_vels[1], hex_vels[2], hex_vels[3])
