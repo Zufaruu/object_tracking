@@ -32,7 +32,7 @@ def control_parser():
     Ysh = " FF" # Yaw speed high byte | 0.1220740379 degree/sec | (2 byte signed, little-endian order)
     Yal = " 00" # Yaw angle low byte 
     Yah = " 00" # Yaw angle  high byte | 0.02197265625 degree | (2 byte signed, little-endian order)
-    CS =  "{:02x}".format(((int(RM[-2:], 16) + int(PM[-2:], 16) + int(YM[-2:], 16) 
+    CS =  " {:02x}".format(((int(RM[-2:], 16) + int(PM[-2:], 16) + int(YM[-2:], 16) 
                            + int(Rsl[-2:], 16) + int(Rsh[-2:], 16) + int(Ral[-2:], 16) + int(Rah[-2:], 16) 
                            + int(Psl[-2:], 16) + int(Psh[-2:], 16) + int(Pal[-2:], 16) + int(Pah[-2:], 16) 
                            + int(Ysl[-2:], 16) + int(Ysh[-2:], 16) + int(Yal[-2:], 16) + int(Yah[-2:], 16)) % 256))  # checksum

@@ -12,7 +12,7 @@ num_click = 0
 is_define_object = True
 is_tracking = False
 is_killing = False
-failure_threshold = 50
+failure_threshold = 100
 integral_x = 0
 pre_error_x = 0
 integral_y = 0
@@ -124,7 +124,7 @@ def vel2hex(yaw, pitch):
     if int_pitch < 0:
         int_pitch = 65535 + int_pitch
 
-    print(f'yaw = {int_yaw}, pitch = {int_pitch}')
+    #print(f'yaw = {int_yaw}, pitch = {int_pitch}')
 
     hex_yaw = "{:04x}".format(int_yaw)
     hex_pitch = "{:04x}".format(int_pitch)
@@ -196,7 +196,6 @@ if __name__=="__main__":
     # tracking init
     tracker_types = ['BOOSTING', 'MIL','KCF', 'TLD', 'MEDIANFLOW', 'MOSSE', 'CSRT']
     type = 'CSRT'
-    tracker = tracker_type(type)
 
     # event handler
     cv2.namedWindow("Frame")      # must match the imshow 1st argument
@@ -207,16 +206,19 @@ if __name__=="__main__":
     width  = cap.get(cv2.CAP_PROP_FRAME_WIDTH)   # float `width`
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)  # float `height`
     center_frame = (int(width/2), int(height/2))
-
-    command_str = init_pos_command_str
-    command_str = bytes.fromhex(command_str)
-    Serial.write(command_str)
+    
+    for i in range(10):
+        command_str = init_pos_command_str
+        command_str = bytes.fromhex(command_str)
+        Serial.write(command_str)
 
     while True:
         if is_define_object:
             command_str = stop_command_str
             command_str = bytes.fromhex(command_str)
             Serial.write(command_str)
+
+            tracker = tracker_type(type)
 
             while (is_define_object): 
                 stream = cv2.waitKey(1) # Load video every 1ms and to detect user entered key
@@ -251,6 +253,7 @@ if __name__=="__main__":
                 reference_frame = frame
                 reference_bbox = bbox
                 print(f'reference_bbox = {reference_bbox}')
+                print(f'bbox = {bbox}')
 
         if is_tracking:
             #Loop for video stream
@@ -266,7 +269,6 @@ if __name__=="__main__":
                 dt = 1/fps
 
                 frame_diff_value = frame_diff(reference_frame, frame)
-                print(frame_diff_value)
 
                 if ret and frame_diff_value < failure_threshold:
                     p1 = (int(bbox[0]), int(bbox[1]))
