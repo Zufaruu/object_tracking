@@ -28,7 +28,7 @@ Part of Intelligent Surveillance System Drone Project MSIB V PT Len Industri (Pe
    `sudo apt-get upgrade` <br>
    `sudo apt-get install python3-pip` <br>
    `python3 -m pip install --upgrade pip` <br>
-   `python3 -m pip install numpy==1.19.4`
+   `python3 -m pip install numpy==1.19.4` <br>
    `python3 -m pip install opencv-contrib-python==3.14.18.65` <br>
 3. Clone this repo and run `python3 tracking.py`
    
