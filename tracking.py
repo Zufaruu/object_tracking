@@ -1,8 +1,9 @@
+# importing libraries
 import serial
 import cv2
 import numpy as np
 
-# Constant
+# Constant and global variables
 colour = (0,255,0)              # green color
 lineWidth = -1                  # -1 will result in filled circle
 radius = 3                      # circle radius
@@ -148,12 +149,6 @@ def to_grayscale(arr):
         return np.mean(arr, -1)  
     else:
         return arr
-
-# function to normalize each pixel value 
-def normalize(arr):
-    rng = arr.max()-arr.min()
-    amin = arr.min()
-    return (arr-amin)*255/rng
 
 # function to calculate pixel difference of reference frames and target frames for failsafe
 def frame_diff(frame_bgr_ref, frame_bgr_target):
